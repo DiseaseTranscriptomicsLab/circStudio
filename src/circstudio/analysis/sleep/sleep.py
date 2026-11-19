@@ -1385,7 +1385,7 @@ def SleepProfile(data, freq='15min', algo='Roenneberg', *args, **kwargs):
 
 
 def SleepRegularityIndex(data, bin_threshold=None, algo='Roenneberg', *args, **kwargs):
-    """ Sleep regularity index
+    r""" Sleep regularity index
 
     Likelihood that any two time-points (epoch-by-epoch) 24 hours apart are
     in the same sleep/wake state, across all days.

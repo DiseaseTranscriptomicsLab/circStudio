@@ -1,0 +1,7 @@
+# Intermediate files written by the pyActigraphy reference scripts
+scripts/pyact_metrics.json
+scripts/pyact_sleep.pkl
+scripts/pyact_profile_dfa.pkl
+# Local virtual environments
+.venv/
+.venv-pyact/

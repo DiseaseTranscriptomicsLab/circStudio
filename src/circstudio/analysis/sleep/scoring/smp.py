@@ -170,7 +170,7 @@ def sum_over_time_of_day(data):
 
 
 def sleep_midpoint(data, threshold=None):
-    """
+    r"""
     Calculate the sleep midpoint in minutes since midnight.
 
     The sleep midpoint is defined as the time halfway between sleep onset and wake-up time.

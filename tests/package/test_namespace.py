@@ -1,6 +1,7 @@
 """Package namespace, exports and import hygiene."""
 
 import importlib
+import os
 import subprocess
 import sys
 import warnings
@@ -12,6 +13,20 @@ import circstudio
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 SRC_DIR = PROJECT_ROOT / "src"
+
+
+def _subprocess_env(**extra):
+    """Environment for a fresh interpreter that imports circStudio from ``src``.
+
+    The parent environment is inherited rather than replaced: on Windows,
+    dropping variables such as SYSTEMROOT stops the interpreter from loading
+    its networking layer (``import asyncio`` fails with WinError 10106).
+    """
+    env = dict(os.environ)
+    env["PYTHONPATH"] = str(SRC_DIR)
+    env.update(extra)
+    return env
+
 
 IO_SYMBOLS = [
     "Raw",
@@ -157,7 +172,7 @@ class TestImportHygiene:
             [sys.executable, "-c", "import circstudio"],
             capture_output=True,
             text=True,
-            env={"PYTHONPATH": str(SRC_DIR), "PATH": "/usr/bin:/bin"},
+            env=_subprocess_env(),
         )
         assert result.returncode == 0, result.stderr
         assert result.stdout == "", f"import printed: {result.stdout!r}"
@@ -172,26 +187,14 @@ class TestImportHygiene:
             ],
             capture_output=True,
             text=True,
-            env={"PYTHONPATH": str(SRC_DIR), "PATH": "/usr/bin:/bin", "MPLBACKEND": "Agg"},
+            env=_subprocess_env(MPLBACKEND="Agg"),
         )
         assert result.returncode == 0, result.stderr
         assert "agg" in result.stdout.lower()
 
-    @pytest.mark.xfail(
-        reason="Two docstrings with LaTeX escapes are not raw strings and emit SyntaxWarning",
-        strict=True,
-    )
     def test_sources_compile_without_syntax_warnings(self):
         offenders = self._syntax_warning_offenders()
         assert not offenders, "invalid escape sequences in: " + ", ".join(offenders)
-
-    def test_the_syntax_warnings_are_exactly_the_two_known_ones(self):
-        """Pin the set so a third one cannot creep in unnoticed."""
-        offenders = self._syntax_warning_offenders()
-        assert sorted(offenders) == [
-            "analysis/sleep/scoring/smp.py",
-            "analysis/sleep/sleep.py",
-        ], f"unexpected set of invalid-escape modules: {sorted(offenders)}"
 
     @staticmethod
     def _syntax_warning_offenders():

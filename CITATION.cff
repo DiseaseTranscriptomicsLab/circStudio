@@ -1,0 +1,26 @@
+cff-version: 1.2.0
+message: "If you use circStudio, please cite it using the metadata below."
+title: "circStudio: a Python package for actigraphy data analysis and mathematical models of circadian rhythms"
+type: software
+authors:
+  - family-names: Marques
+    given-names: Daniel
+    email: daniel.marques@gimm.pt
+    affiliation: "GIMM - Gulbenkian Institute for Molecular Medicine, Lisbon, Portugal"
+    # TODO: add orcid: "https://orcid.org/0000-0000-0000-0000"
+  - family-names: Morais
+    given-names: Nuno
+    affiliation: "GIMM - Gulbenkian Institute for Molecular Medicine, Lisbon, Portugal"
+  - family-names: Reis
+    given-names: Cátia
+    affiliation: "Faculdade de Medicina, Universidade de Lisboa, Lisbon, Portugal"
+version: 1.1.3
+license: GPL-3.0-only
+repository-code: "https://github.com/DiseaseTranscriptomicsLab/circStudio"
+url: "https://DiseaseTranscriptomicsLab.github.io/circStudio/"
+keywords:
+  - actigraphy
+  - circadian rhythms
+  - sleep
+  - mathematical modeling
+  - chronobiology

@@ -330,7 +330,6 @@ class TestModelValidation:
             model = Forger(inputs=light_schedule.light_vector, time=short_time)
             model.integrate()
 
-    @pytest.mark.xfail(reason="An empty light input is integrated instead of rejected", strict=True)
     def test_empty_light_input_is_rejected(self):
         with pytest.raises(Exception):
             model = Forger(inputs=np.array([]), time=np.array([]))
@@ -412,3 +411,76 @@ class TestModelComparer:
         assert params["a2"].default == 1.0
         assert params["m1"].default == 0.0
         assert params["m2"].default == 0.0
+
+
+class TestJewettCoreBodyTemperatureMinimum:
+    """Jewett et al. (1999) place CBTmin phi_ref hours after the minimum of x."""
+
+    def test_cbt_is_minimum_of_x_plus_phi_ref(self, light_schedule):
+        from scipy.signal import find_peaks
+
+        time = np.asarray(light_schedule.time_vector)
+        light = np.asarray(light_schedule.light_vector)
+        model = Jewett(inputs=light, time=time)
+        model.initialize_model_states()
+
+        dt = np.diff(time)[0]
+        x_minima, _ = find_peaks(-model.model_states[:, 0], distance=np.ceil(13.0 / dt))
+        expected = time[x_minima] + model.phi_ref
+
+        np.testing.assert_allclose(model.cbt(), expected)
+        assert model.phi_ref == 0.8
+
+    def test_dlmo_is_seven_hours_before_cbt(self, light_schedule):
+        time = np.asarray(light_schedule.time_vector)
+        light = np.asarray(light_schedule.light_vector)
+        model = Jewett(inputs=light, time=time)
+        model.initialize_model_states()
+        np.testing.assert_allclose(model.dlmos(), model.cbt() - 7.0)
+
+
+@pytest.fixture(scope="module")
+def thirty_days():
+    """30 days of 16 h at 1000 lux and 8 h of darkness, at 6-minute resolution."""
+    time = np.arange(0.0, 30 * 24.0, 0.1)
+    light = np.where(time % 24.0 >= 8.0, 1000.0, 0.0)
+    return time, light
+
+
+class TestBreslowLongRecordings:
+    """Breslow13 used to fail silently (all-zero states) once bright light drove
+    pineal melatonin to the guard threshold, which happened after ~16 days of a
+    regular schedule. The piecewise integration must complete and keep pineal
+    melatonin non-negative."""
+
+    def test_integration_completes_without_zero_states(self, thirty_days):
+        time, light = thirty_days
+        model = Breslow13(inputs=light, time=time)
+        states = np.asarray(model.model_states)
+        assert np.all(np.isfinite(states))
+        assert not np.any(np.all(states[:, :3] == 0.0, axis=1))
+
+    def test_pineal_melatonin_stays_non_negative(self, thirty_days):
+        time, light = thirty_days
+        model = Breslow13(inputs=light, time=time)
+        assert np.asarray(model.model_states)[:, 3].min() > -1e-6
+
+    def test_one_dlmo_per_day_once_entrained(self, thirty_days):
+        time, light = thirty_days
+        model = Breslow13(inputs=light, time=time)
+        dlmos = np.asarray(model.dlmos())
+        assert len(dlmos) == 30
+        np.testing.assert_allclose(np.diff(dlmos)[-10:], 24.0, atol=0.2)
+
+
+class TestIntegrationFailureIsReported:
+    def test_base_integrate_raises_instead_of_returning_zeros(self, light_schedule, mocker):
+        time = np.asarray(light_schedule.time_vector)
+        light = np.asarray(light_schedule.light_vector)
+        model = Forger(inputs=light, time=time)
+        failed = (np.zeros((len(time), 3)), {"message": "Excess work done on this call."})
+        mocker.patch(
+            "circstudio.analysis.models.math_models.odeint", return_value=failed
+        )
+        with pytest.raises(RuntimeError, match="Forger failed"):
+            model.integrate()

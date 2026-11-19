@@ -1,7 +1,9 @@
+import warnings
+
 import numpy as np
 import pandas as pd
 from scipy.signal import find_peaks
-from scipy.integrate import odeint
+from scipy.integrate import odeint, solve_ivp, ODEintWarning
 from scipy.optimize import curve_fit
 import matplotlib.pyplot as plt
 import plotly.graph_objs as go
@@ -92,6 +94,9 @@ class Model:
             else self.initial_conditions
         )
 
+        if len(time_vector) == 0 or len(light_vector) == 0:
+            raise ValueError("The light and time inputs must not be empty.")
+
         # Define a function to include light input
         def system_with_light(state, t):
             # light_input = light_vector[min(int(t), len(light_vector) - 1)]
@@ -101,8 +106,17 @@ class Model:
             light_input = light_vector[index]
             return self.derivative(t, state, light_input)
 
-        # Use odeint to integrate the system
-        solution = odeint(system_with_light, initial_condition, time_vector)
+        # Use odeint to integrate the system. With full_output, odeint reports
+        # whether it succeeded; on failure it fills the remaining rows with
+        # zeros, which must not be passed on as a simulation result.
+        solution, info = odeint(
+            system_with_light, initial_condition, time_vector, full_output=True
+        )
+        if info["message"] != "Integration successful.":
+            raise RuntimeError(
+                f"Numerical integration of {self.__class__.__name__} failed: "
+                f"{info['message']}"
+            )
         return solution
 
     def get_initial_conditions(
@@ -702,8 +716,9 @@ class Jewett(Model):
         inverted_x = -1.0 * self.model_states[:, 0]
         # Identify the indices where the minima occur
         cbt_min_indices, _ = find_peaks(inverted_x, distance=np.ceil(13.0 / dt))
-        # Use the previous indices to find the cbtmin times
-        cbtmin_times = self.time[cbt_min_indices]
+        # CBTmin is placed phi_ref hours (default 0.8 h) after the minimum of x,
+        # as defined by Jewett et al. (1999)
+        cbtmin_times = self.time[cbt_min_indices] + self.phi_ref
         # if you want to know in clock time, just do cbtmin_times % 24
         return cbtmin_times
 
@@ -2236,6 +2251,91 @@ class Breslow13(Model):
         self.phi_ref = phi_ref
         self.cbt_to_dlmo = cbt_to_dlmo
         self.initialize_model_states()
+
+    def integrate(self, light_vector=None, time_vector=None, initial_condition=None):
+        """
+        Numerically integrates the model, one sampling interval at a time.
+
+        The Breslow model contains switches that make its right-hand side
+        discontinuous: the guard that stops pineal melatonin from becoming
+        negative (``avoid_negative_h1``), the phase-dependent melatonin
+        synthesis window and the steps in the light input. Under bright light,
+        pineal melatonin can fall to the guard threshold within a single
+        sample, where the production term switches off abruptly. Integrating
+        the whole record in one ``odeint`` call then fails: the step size
+        collapses and the solver returns zeros for the rest of the record.
+
+        To avoid this, the light input is held constant over each interval
+        between consecutive samples (as in the other models, using the value
+        at the end of the interval) and each interval is integrated separately
+        with ``odeint`` (LSODA). If LSODA still fails on an interval, that
+        interval is integrated with an explicit adaptive Runge-Kutta method
+        (``solve_ivp``, RK45), which handles the discontinuity by rejecting and
+        shortening steps. A ``RuntimeError`` is raised if both fail.
+
+        Parameters
+        ----------
+        light_vector (numpy.ndarray, optional):
+            Array of light intensities (lux). Defaults to ``self.inputs``.
+        time_vector (numpy.ndarray, optional):
+            Array of time points (hours). Defaults to ``self.time``.
+        initial_condition (numpy.ndarray, optional):
+            Initial state. Defaults to ``self.initial_conditions``.
+
+        Returns
+        -------
+        numpy.ndarray:
+            Simulated state trajectories, one row per time point.
+        """
+        light_vector = np.asarray(
+            light_vector if light_vector is not None else self.inputs, dtype=float
+        )
+        time_vector = np.asarray(
+            time_vector if time_vector is not None else self.time, dtype=float
+        )
+        initial_condition = np.asarray(
+            initial_condition
+            if initial_condition is not None
+            else self.initial_conditions,
+            dtype=float,
+        )
+
+        solution = np.empty((len(time_vector), len(initial_condition)))
+        solution[0] = initial_condition
+
+        def rhs_odeint(state, t, light):
+            return self.derivative(t, state, light)
+
+        def rhs_ivp(t, state, light):
+            return self.derivative(t, state, light)
+
+        for i in range(1, len(time_vector)):
+            t0, t1 = time_vector[i - 1], time_vector[i]
+            light = light_vector[i]
+            with warnings.catch_warnings():
+                # LSODA warns before giving up on an interval; the fallback
+                # below handles that case, so the warning is not passed on.
+                warnings.simplefilter("ignore", category=ODEintWarning)
+                step, info = odeint(
+                    rhs_odeint, solution[i - 1], [t0, t1], args=(light,),
+                    full_output=True,
+                )
+            if info["message"] == "Integration successful.":
+                solution[i] = step[-1]
+                continue
+            # Fallback for this interval only
+            fallback = solve_ivp(
+                rhs_ivp, (t0, t1), solution[i - 1], args=(light,),
+                method="RK45", rtol=1e-8, atol=1e-10,
+            )
+            if not fallback.success:
+                raise RuntimeError(
+                    f"Numerical integration of Breslow13 failed between "
+                    f"t = {t0} h and t = {t1} h: {fallback.message}"
+                )
+            solution[i] = fallback.y[:, -1]
+
+        return solution
 
     def avoid_negative_h1(self, h1, b):
         if h1 < self.h1_threshold and (1.0 - self.m * b) < 0:
