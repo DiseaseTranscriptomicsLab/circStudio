@@ -439,17 +439,19 @@ class TestJewettCoreBodyTemperatureMinimum:
         np.testing.assert_allclose(model.dlmos(), model.cbt() - 7.0)
 
 
+@pytest.fixture(scope="module")
+def thirty_days():
+    """30 days of 16 h at 1000 lux and 8 h of darkness, at 6-minute resolution."""
+    time = np.arange(0.0, 30 * 24.0, 0.1)
+    light = np.where(time % 24.0 >= 8.0, 1000.0, 0.0)
+    return time, light
+
+
 class TestBreslowLongRecordings:
     """Breslow13 used to fail silently (all-zero states) once bright light drove
     pineal melatonin to the guard threshold, which happened after ~16 days of a
     regular schedule. The piecewise integration must complete and keep pineal
     melatonin non-negative."""
-
-    @pytest.fixture(scope="class")
-    def thirty_days(self):
-        time = np.arange(0.0, 30 * 24.0, 0.1)
-        light = np.where(time % 24.0 >= 8.0, 1000.0, 0.0)
-        return time, light
 
     def test_integration_completes_without_zero_states(self, thirty_days):
         time, light = thirty_days

@@ -1,7 +1,9 @@
+import warnings
+
 import numpy as np
 import pandas as pd
 from scipy.signal import find_peaks
-from scipy.integrate import odeint, solve_ivp
+from scipy.integrate import odeint, solve_ivp, ODEintWarning
 from scipy.optimize import curve_fit
 import matplotlib.pyplot as plt
 import plotly.graph_objs as go
@@ -2310,9 +2312,14 @@ class Breslow13(Model):
         for i in range(1, len(time_vector)):
             t0, t1 = time_vector[i - 1], time_vector[i]
             light = light_vector[i]
-            step, info = odeint(
-                rhs_odeint, solution[i - 1], [t0, t1], args=(light,), full_output=True
-            )
+            with warnings.catch_warnings():
+                # LSODA warns before giving up on an interval; the fallback
+                # below handles that case, so the warning is not passed on.
+                warnings.simplefilter("ignore", category=ODEintWarning)
+                step, info = odeint(
+                    rhs_odeint, solution[i - 1], [t0, t1], args=(light,),
+                    full_output=True,
+                )
             if info["message"] == "Integration successful.":
                 solution[i] = step[-1]
                 continue
