@@ -412,3 +412,29 @@ class TestModelComparer:
         assert params["a2"].default == 1.0
         assert params["m1"].default == 0.0
         assert params["m2"].default == 0.0
+
+
+class TestJewettCoreBodyTemperatureMinimum:
+    """Jewett et al. (1999) place CBTmin phi_ref hours after the minimum of x."""
+
+    def test_cbt_is_minimum_of_x_plus_phi_ref(self, light_schedule):
+        from scipy.signal import find_peaks
+
+        time = np.asarray(light_schedule.time_vector)
+        light = np.asarray(light_schedule.light_vector)
+        model = Jewett(inputs=light, time=time)
+        model.initialize_model_states()
+
+        dt = np.diff(time)[0]
+        x_minima, _ = find_peaks(-model.model_states[:, 0], distance=np.ceil(13.0 / dt))
+        expected = time[x_minima] + model.phi_ref
+
+        np.testing.assert_allclose(model.cbt(), expected)
+        assert model.phi_ref == 0.8
+
+    def test_dlmo_is_seven_hours_before_cbt(self, light_schedule):
+        time = np.asarray(light_schedule.time_vector)
+        light = np.asarray(light_schedule.light_vector)
+        model = Jewett(inputs=light, time=time)
+        model.initialize_model_states()
+        np.testing.assert_allclose(model.dlmos(), model.cbt() - 7.0)

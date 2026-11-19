@@ -702,8 +702,9 @@ class Jewett(Model):
         inverted_x = -1.0 * self.model_states[:, 0]
         # Identify the indices where the minima occur
         cbt_min_indices, _ = find_peaks(inverted_x, distance=np.ceil(13.0 / dt))
-        # Use the previous indices to find the cbtmin times
-        cbtmin_times = self.time[cbt_min_indices]
+        # CBTmin is placed phi_ref hours (default 0.8 h) after the minimum of x,
+        # as defined by Jewett et al. (1999)
+        cbtmin_times = self.time[cbt_min_indices] + self.phi_ref
         # if you want to know in clock time, just do cbtmin_times % 24
         return cbtmin_times
 

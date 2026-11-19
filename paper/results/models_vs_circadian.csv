@@ -1,0 +1,9 @@
+input,model,dlmo_circstudio,dlmo_circadian,max_abs_dlmo_difference_min,sampling_interval_min,max_abs_state_difference
+"regular 16 h light : 8 h dark, 30 days",Forger (1999),30,30,0.0,6.000000000000512,9.667881538666379e-07
+"regular 16 h light : 8 h dark, 30 days",Jewett (1999),30,30,0.0,6.000000000000512,3.487367374266359e-05
+"regular 16 h light : 8 h dark, 30 days",Hannay single population (2019),30,30,0.0,6.000000000000512,1.8524140418696433e-05
+"regular 16 h light : 8 h dark, 30 days",Hannay two populations (2019),30,30,0.0,6.000000000000512,1.8524140418696433e-05
+"ActTrust example recording, 4 days",Forger (1999),4,4,0.0,0.9999999999999432,0.00033173120059148964
+"ActTrust example recording, 4 days",Jewett (1999),4,4,0.0,0.9999999999999432,0.000980505659026798
+"ActTrust example recording, 4 days",Hannay single population (2019),4,4,0.0,0.9999999999999432,2.9947960060942858e-05
+"ActTrust example recording, 4 days",Hannay two populations (2019),4,4,0.0,0.9999999999999432,0.00013677107390046989
