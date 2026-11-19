@@ -87,14 +87,25 @@ the expected outputs.
 python scripts/compare_models_circadian.py   # -> results/models_vs_circadian.csv
 ```
 
-The Forger, Jewett and both Hannay models are driven with identical light,
-time grid and initial state in circStudio and in `circadian` 1.0.3, using a
-regular schedule (16 h at 1000 lux, 8 h dark, 30 days) and the light channel of
-the ActTrust example recording. All predicted dim-light melatonin onsets fall on
-the same sample in both packages, and the state trajectories differ by at most
-10⁻³. The two packages integrate differently (SciPy's adaptive `odeint` in
-circStudio, fixed-step fourth-order Runge-Kutta in `circadian`), which accounts
-for the small differences in state.
+The Forger, Jewett, both Hannay and the Breslow models are driven with
+identical light, time grid and initial state in circStudio and in `circadian`
+1.0.3, using a regular schedule (16 h at 1000 lux, 8 h dark, 30 days) and the
+light channel of the ActTrust example recording. All predicted dim-light
+melatonin onsets fall on the same sample in both packages, and the oscillator
+states differ by at most 10⁻³. The two packages integrate differently (SciPy's
+`odeint` in circStudio, fixed-step fourth-order Runge-Kutta in `circadian`),
+which accounts for the small differences in state.
+
+For the Breslow model, the melatonin compartments differ by up to 0.68. After
+bright light, `circadian`'s fixed-step scheme lets pineal melatonin overshoot
+below zero (to -0.68 on the regular schedule), which the model's guard against
+negative production is meant to prevent; circStudio keeps it at zero or above.
+On the real recording, `circadian` also reports extra, closely spaced
+temperature minima for this model because it imposes no minimum spacing
+between them; each circStudio onset is matched to the nearest one.
+
+The St Hilaire and Skeldon models, which include sleep-wake dynamics, are not
+part of this comparison.
 
 ## 5. Test suite
 

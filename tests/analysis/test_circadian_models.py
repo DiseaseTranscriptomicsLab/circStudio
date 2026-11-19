@@ -330,7 +330,6 @@ class TestModelValidation:
             model = Forger(inputs=light_schedule.light_vector, time=short_time)
             model.integrate()
 
-    @pytest.mark.xfail(reason="An empty light input is integrated instead of rejected", strict=True)
     def test_empty_light_input_is_rejected(self):
         with pytest.raises(Exception):
             model = Forger(inputs=np.array([]), time=np.array([]))
@@ -438,3 +437,48 @@ class TestJewettCoreBodyTemperatureMinimum:
         model = Jewett(inputs=light, time=time)
         model.initialize_model_states()
         np.testing.assert_allclose(model.dlmos(), model.cbt() - 7.0)
+
+
+class TestBreslowLongRecordings:
+    """Breslow13 used to fail silently (all-zero states) once bright light drove
+    pineal melatonin to the guard threshold, which happened after ~16 days of a
+    regular schedule. The piecewise integration must complete and keep pineal
+    melatonin non-negative."""
+
+    @pytest.fixture(scope="class")
+    def thirty_days(self):
+        time = np.arange(0.0, 30 * 24.0, 0.1)
+        light = np.where(time % 24.0 >= 8.0, 1000.0, 0.0)
+        return time, light
+
+    def test_integration_completes_without_zero_states(self, thirty_days):
+        time, light = thirty_days
+        model = Breslow13(inputs=light, time=time)
+        states = np.asarray(model.model_states)
+        assert np.all(np.isfinite(states))
+        assert not np.any(np.all(states[:, :3] == 0.0, axis=1))
+
+    def test_pineal_melatonin_stays_non_negative(self, thirty_days):
+        time, light = thirty_days
+        model = Breslow13(inputs=light, time=time)
+        assert np.asarray(model.model_states)[:, 3].min() > -1e-6
+
+    def test_one_dlmo_per_day_once_entrained(self, thirty_days):
+        time, light = thirty_days
+        model = Breslow13(inputs=light, time=time)
+        dlmos = np.asarray(model.dlmos())
+        assert len(dlmos) == 30
+        np.testing.assert_allclose(np.diff(dlmos)[-10:], 24.0, atol=0.2)
+
+
+class TestIntegrationFailureIsReported:
+    def test_base_integrate_raises_instead_of_returning_zeros(self, light_schedule, mocker):
+        time = np.asarray(light_schedule.time_vector)
+        light = np.asarray(light_schedule.light_vector)
+        model = Forger(inputs=light, time=time)
+        failed = (np.zeros((len(time), 3)), {"message": "Excess work done on this call."})
+        mocker.patch(
+            "circstudio.analysis.models.math_models.odeint", return_value=failed
+        )
+        with pytest.raises(RuntimeError, match="Forger failed"):
+            model.integrate()

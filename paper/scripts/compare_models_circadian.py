@@ -19,6 +19,11 @@ Two light inputs are used:
 2. the light channel of the ActTrust example recording bundled with
    circStudio (four days, one sample per minute).
 
+DLMOs are matched by pairing each circStudio DLMO with the nearest one from
+``circadian``. For the Breslow model, ``circadian`` does not impose a minimum
+spacing between temperature minima and reports additional, closely spaced
+minima on the real recording; the matched DLMOs are still compared.
+
 Both packages must be installed in the same environment::
 
     pip install -e ..        # circStudio, from this repository
@@ -57,6 +62,7 @@ MODELS = [
     (cs.Jewett, cm.Jewett99, 'Jewett (1999)'),
     (cs.HannaySP, cm.Hannay19, 'Hannay single population (2019)'),
     (cs.HannayTP, cm.Hannay19TP, 'Hannay two populations (2019)'),
+    (cs.Breslow13, cm.Breslow13, 'Breslow (2013)'),
 ]
 
 
@@ -103,8 +109,18 @@ def compare(time, light, input_name):
         dl_cm = np.asarray(m_cm.dlmos(), dtype=float)
 
         diffs = match(dl_cs, dl_cm)
-        state_diff = np.max(np.abs(np.asarray(m_cs.model_states)
-                                   - np.asarray(trajectory.states)))
+        S_cs, S_cm = np.asarray(m_cs.model_states), np.asarray(trajectory.states)
+        if cs_cls is cs.Breslow13:
+            # Oscillator and photoreceptor states (x, xc, n) are compared
+            # separately from the melatonin compartments: circadian's fixed-step
+            # scheme lets pineal melatonin overshoot below zero after bright
+            # light, which the model's guard is meant to prevent.
+            core_diff = np.max(np.abs(S_cs[:, :3] - S_cm[:, :3]))
+            mel_diff = np.max(np.abs(S_cs[:, 3:] - S_cm[:, 3:]))
+            min_h1 = S_cm[:, 3].min()
+        else:
+            core_diff = np.max(np.abs(S_cs - S_cm))
+            mel_diff = min_h1 = np.nan
         rows.append({
             'input': input_name,
             'model': label,
@@ -112,7 +128,9 @@ def compare(time, light, input_name):
             'dlmo_circadian': len(dl_cm),
             'max_abs_dlmo_difference_min': float(np.max(np.abs(diffs)) * 60.0) if len(diffs) else np.nan,
             'sampling_interval_min': float(np.median(np.diff(time)) * 60.0),
-            'max_abs_state_difference': float(state_diff),
+            'max_abs_difference_oscillator_states': float(core_diff),
+            'max_abs_difference_melatonin': float(mel_diff),
+            'min_pineal_melatonin_circadian': float(min_h1),
         })
     return rows
 
