@@ -10,16 +10,27 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  # circStudio requires Python 3.12 (pyproject: requires-python = ">=3.12").
-  PYTHON_VERSION: "3.12"
   # Keep every test headless; conftest.py also sets this, belt and braces.
   MPLBACKEND: Agg
 
 jobs:
   unit:
-    name: library tests
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
+    name: library tests (${{ matrix.os }}, Python ${{ matrix.python-version }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      # Run every combination even if one fails, so a platform-specific
+      # failure does not hide the others.
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        # circStudio requires Python 3.12 or later (pyproject: requires-python = ">=3.12").
+        python-version: ["3.12", "3.13", "3.14"]
+    defaults:
+      run:
+        # Use bash on every runner, including Windows, so the multi-line
+        # commands below behave the same everywhere.
+        shell: bash
 
     steps:
       - uses: actions/checkout@v4
@@ -31,11 +42,11 @@ jobs:
           cache-dependency-glob: pyproject.toml
 
       - name: Set up Python
-        run: uv python install ${{ env.PYTHON_VERSION }}
+        run: uv python install ${{ matrix.python-version }}
 
       - name: Create the environment
         run: |
-          uv venv --python ${{ env.PYTHON_VERSION }}
+          uv venv --python ${{ matrix.python-version }}
           # Library runtime dependencies, pinned to the ranges in pyproject.
           uv pip install \
             'pandas>=2.3.3,<3' 'numpy>=2.4.1,<3' 'scipy>=1.17.0,<2' \
