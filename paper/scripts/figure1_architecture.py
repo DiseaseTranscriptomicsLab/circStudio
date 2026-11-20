@@ -184,10 +184,10 @@ y = group(XL + 2.6, y, 'Rest-activity rhythm', [
     'relative amplitude (L5, M10), daily profiles,',
     'light exposure summaries'], GREEN)
 y = group(XL + 2.6, y, 'Sleep', [
-    'Seven sleep-scoring algorithms (Cole-Kripke,',
-    'Sadeh, Scripps, Oakley, Crespo, Roenneberg,',
-    'Condor), sleep regularity index, sleep',
-    'midpoint, wake after sleep onset'], GREEN)
+    'Six sleep-scoring algorithms (Cole-Kripke,',
+    'Sadeh, Scripps, Oakley, Crespo, Roenneberg),',
+    'sleep regularity index, sleep midpoint,',
+    'wake after sleep onset'], GREEN)
 y = group(XL + 2.6, y, 'Signal structure', [
     'Cosinor, singular spectrum analysis,',
     'functional linear modeling, detrended',
